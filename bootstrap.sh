@@ -1,13 +1,12 @@
 #!/bin/bash
 
-# test if build dir exists
-if [ ! -d "build" ]; then
-  mkdir build
-# delete build dir if it exists
-else 
+# delete build dir if exists
+if [ -d "build" ]; then
+  echo "cleaning..."
   rm -rf build
 fi
 
+mkdir build
 pushd build
 conan install ..
 
