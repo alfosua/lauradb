@@ -4,6 +4,9 @@
 using boost::asio::ip::tcp;
 using std::string;
 
+string read(tcp::socket &socket);
+void send(tcp::socket &socket, const string &message);
+
 int main()
 {
     boost::asio::io_service io_service;
