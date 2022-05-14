@@ -1,3 +1,4 @@
+#include "parsing/core.hpp"
 #include <boost/asio.hpp>
 #include <fmt/core.h>
 

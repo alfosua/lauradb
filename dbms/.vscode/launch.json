@@ -1,0 +1,12 @@
+{
+    "configurations": [
+        {
+            "name": "Run LauraDB",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/bin/lauradb",
+            "cwd": "${fileDirname}",
+            "miDebuggerPath": "gdb"
+        }
+    ]
+}
