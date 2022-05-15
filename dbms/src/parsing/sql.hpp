@@ -5,21 +5,6 @@
 #include <string>
 #include <vector>
 
-namespace lauradb::parsing::sql {
-using lauradb::parsing::core::make_input;
-using lauradb::parsing::core::string_parsable;
-
-inline auto select_query_parser(const string_parsable &input) {
-    using lauradb::parsing::core::one_character;
-    using lauradb::parsing::core::tag;
-
-    auto column_separator = one_character(L',');
-    auto select_tag = tag(L"select");
-    auto from_tag = tag(L"from");
-}
-
-} // namespace lauradb::parsing::sql
-
 namespace lauradb::parsing::sql::syntax_tree {
 
 class select_query {
@@ -33,5 +18,37 @@ class select_query {
 };
 
 } // namespace lauradb::parsing::sql::syntax_tree
+
+namespace lauradb::parsing::sql {
+using namespace lauradb::parsing::sql::syntax_tree;
+using namespace lauradb::parsing::core;
+
+inline auto select_query_parser() {
+    auto termination = multispacing_or_none;
+    auto column_separator = delimited(multispacing_or_none, one_character(L','),
+                                      multispacing_or_none);
+
+    auto select_tag = tag(L"select");
+    auto select_prefix = pair(select_tag, multispacing);
+
+    auto from_tag = tag(L"from");
+    auto from_prefix = pair(from_tag, multispacing);
+
+    auto column_list = separated_list(column_separator, alphanumerics);
+    auto columns = delimited(select_prefix, column_list, multispacing);
+
+    auto source = delimited(from_prefix, alphanumerics, termination);
+
+    auto compilation = pair(columns, source);
+
+    auto select_query_map = map(compilation, [](auto compilation) {
+        const auto [columns, source] = compilation;
+        return select_query(source, columns);
+    });
+
+    return select_query_map;
+}
+
+} // namespace lauradb::parsing::sql
 
 #endif

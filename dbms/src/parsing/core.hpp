@@ -54,6 +54,19 @@ class string_parsable {
     }
 };
 
+template <typename R, typename O>
+inline auto make_result(const R &rest, const O &output) {
+    return result<const R &, const O &>(rest, output);
+}
+
+inline auto make_input(const std::wstring &source) {
+    return string_parsable(source);
+}
+
+inline auto make_input(const std::wstring_view &source) {
+    return string_parsable(source);
+}
+
 namespace internals {
 
 inline auto check_emptiness(const string_parsable &input) {
@@ -94,7 +107,7 @@ inline auto sequence_satisfied_by(string_parsable input,
 
     const auto [head, rest] = input.split_at_position(offset);
 
-    return string_result(head, rest);
+    return make_result(head, rest);
 }
 
 inline auto sequence_satisfied_by_or_none(string_parsable input,
@@ -105,25 +118,12 @@ inline auto sequence_satisfied_by_or_none(string_parsable input,
 
     const auto [head, rest] = input.split_at_position(offset);
 
-    return string_result(head, rest);
+    return make_result(head, rest);
 }
 
 } // namespace internals
 
-template <typename R, typename O>
-inline auto make_result(const R &rest, const O &output) {
-    return result<const R &, const O &>(rest, output);
-}
-
-inline auto make_input(const std::wstring &source) {
-    return string_parsable(source);
-}
-
-inline auto make_input(const std::wstring_view &source) {
-    return string_parsable(source);
-}
-
-inline auto one_character(const char &target_ch) -> string_parser {
+inline auto one_character(const char &target_ch) {
     return [target_ch](const string_parsable &input) {
         const auto [first, rest] = input.split_at_position(1);
 
@@ -131,11 +131,11 @@ inline auto one_character(const char &target_ch) -> string_parser {
             throw std::runtime_error("Could not parse character '{}' at head");
         }
 
-        return string_result(first, rest);
+        return make_result(first, rest);
     };
 }
 
-inline auto tag(const std::wstring &target_tag) -> string_parser {
+inline auto tag(const std::wstring &target_tag) {
     return [target_tag](const string_parsable &input) {
         const auto [head, rest] = input.split_at_position(target_tag.length());
 
@@ -143,7 +143,7 @@ inline auto tag(const std::wstring &target_tag) -> string_parser {
             throw std::runtime_error("Could not parse tag '{}' at head");
         }
 
-        return string_result(head, rest);
+        return make_result(head, rest);
     };
 }
 
@@ -235,6 +235,18 @@ inline parser<I, TO> suffixed(const parser<I, TO> &target_parser,
         const auto [target_rest, target_output] = target_parser(input);
         const auto [suffixed_rest, _] = suffix_parser(target_rest);
         return make_result(suffixed_rest, target_output);
+    };
+}
+
+template <typename I, typename LO, typename TO, typename RO>
+inline parser<I, TO> delimited(const parser<I, LO> &left_parser,
+                               const parser<I, TO> &target_parser,
+                               const parser<I, RO> &right_parser) {
+    return [left_parser, target_parser, right_parser](I input) {
+        const auto [left_rest, _1] = left_parser(input);
+        const auto [target_rest, target_output] = target_parser(input);
+        const auto [right_parser, _2] = right_parser(target_parser);
+        return make_result(right_parser, target_output);
     };
 }
 
