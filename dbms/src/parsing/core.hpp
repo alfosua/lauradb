@@ -12,8 +12,8 @@ class string_parsable;
 template <typename R, typename O> using result = std::tuple<R, O>;
 
 template <typename F, typename I, typename O>
-concept parser = requires(F f, I i) {
-    { f(i) } -> std::convertible_to<O>;
+concept parser = requires(F &&f, I &&i) {
+    { std::forward<F>(f)(std::forward<I>(i)) } -> std::same_as<O>;
 };
 
 using string_predicate = std::function<bool(wchar_t &)>;
@@ -31,7 +31,7 @@ class string_parsable {
         auto right = string_parsable(view.substr(pos));
         auto left = pos > 0 ? string_parsable(view.substr(0, pos))
                             : string_parsable(std::wstring_view());
-        return std::tuple(left, right);
+        return std::make_tuple(left, right);
     }
 
     constexpr bool empty() const noexcept { return view.empty(); }
@@ -80,7 +80,8 @@ inline auto is_multispace(const wchar_t &ch) {
 }
 
 inline auto calc_head_offset_by_satisfying(
-    string_parsable input, std::function<bool(wchar_t &)> const &predicate) {
+    const string_parsable &input,
+    const std::function<bool(wchar_t &)> &predicate) {
     auto offset = 0;
 
     for (auto ch : input) {
@@ -94,8 +95,8 @@ inline auto calc_head_offset_by_satisfying(
     return offset;
 }
 
-inline auto sequence_satisfied_by(string_parsable input,
-                                  string_predicate const &predicate,
+inline auto sequence_satisfied_by(const string_parsable &input,
+                                  const string_predicate &predicate,
                                   const std::string &error_message) {
     check_emptiness(input);
 
@@ -110,8 +111,8 @@ inline auto sequence_satisfied_by(string_parsable input,
     return make_result(head, rest);
 }
 
-inline auto sequence_satisfied_by_or_none(string_parsable input,
-                                          string_predicate const &predicate) {
+inline auto sequence_satisfied_by_or_none(const string_parsable &input,
+                                          const string_predicate &predicate) {
     check_emptiness(input);
 
     auto offset = calc_head_offset_by_satisfying(input, predicate);
@@ -190,7 +191,7 @@ inline P map(const PP &parser, const std::function<MO(PO)> &mapper) {
     return [parser, mapper](I input) {
         const auto [rest, raw_output] = parser(input);
         auto mapping = mapper(raw_output);
-        return result<I, MO>(rest, mapping);
+        return make_result(rest, mapping);
     };
 }
 

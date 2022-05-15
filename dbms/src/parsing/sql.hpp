@@ -29,7 +29,7 @@ inline auto select_query_parser() {
                                       multispacing_or_none);
 
     auto select_tag = tag(L"select");
-    auto select_prefix = pair(select_tag, multispacing);
+    auto select_prefix = pair(&select_tag, &multispacing);
 
     auto from_tag = tag(L"from");
     auto from_prefix = pair(from_tag, multispacing);

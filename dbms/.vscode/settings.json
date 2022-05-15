@@ -68,6 +68,9 @@
         "cinttypes": "cpp",
         "typeinfo": "cpp",
         "variant": "cpp",
-        "semaphore": "cpp"
+        "semaphore": "cpp",
+        "strstream": "cpp",
+        "complex": "cpp",
+        "valarray": "cpp"
     }
 }
