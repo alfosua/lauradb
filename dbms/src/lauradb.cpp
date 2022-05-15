@@ -1,4 +1,5 @@
 #include <boost/asio.hpp>
+#include <concepts>
 #include <fmt/core.h>
 #include <functional>
 
@@ -10,13 +11,13 @@ void send(tcp::socket &socket, const string &message);
 void serve();
 
 template <typename F, typename I, typename O>
-concept action = requires(F &&f) {
-    { f } -> std::convertible_to < std::function<O(I)>
+concept action = requires(F &&f, I &&i) {
+    { std::forward<F>(f)(std::forward<I>(i)) }
+    ->std::convertible_to<O>;
 };
 
-template <typename A, typename I, typename O>
-requires action<A, I, O> std::vector<O> map(const std::vector<I> &values,
-                                            const A &action) {
+template <typename I, typename O, action<I, O> A>
+std::vector<O> map(const std::vector<I> &values, const A &action) {
     auto result = std::vector<O>();
 
     for (auto v : values)
@@ -28,7 +29,7 @@ requires action<A, I, O> std::vector<O> map(const std::vector<I> &values,
 string int_to_sqr_text(int v) { return std::to_string(v * v); }
 
 int main() {
-    auto pow = 5;
+    // auto pow = 5;
     auto source = std::vector<int>{1, 2, 3, 4, 5};
     // auto sqres = map(source, int_to_sqr_text);
     // auto cubes = map<int, std::string>(

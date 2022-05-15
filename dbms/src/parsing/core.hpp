@@ -13,19 +13,19 @@ template <typename R, typename O> using result = std::tuple<R, O>;
 
 template <typename F, typename I, typename O>
 concept parser = requires(F &&f, I &&i) {
-    { std::forward<F>(f)(std::forward<I>(i)) } -> std::same_as<O>;
+    { std::forward<F>(f)(std::forward<I>(i)) }
+    ->std::convertible_to<O>;
 };
 
 using string_predicate = std::function<bool(wchar_t &)>;
 
 class string_parsable {
   private:
-    const std::wstring_view &view;
+    std::wstring_view view;
 
   public:
     string_parsable(const std::wstring_view &source_view) : view(source_view) {}
-    string_parsable(const std::wstring &source_str)
-        : view(std::wstring_view(source_str)) {}
+    string_parsable(std::wstring source_str) : view(source_str) {}
 
     inline auto split_at_position(int pos) const {
         auto right = string_parsable(view.substr(pos));
@@ -186,20 +186,19 @@ inline auto multispacing_or_none(const string_parsable &input) {
 }
 
 template <typename I, typename PP, typename PO, typename MO, typename P>
-requires parser<PP, I, PO> && parser<P, I, MO>
-inline P map(const PP &parser, const std::function<MO(PO)> &mapper) {
-    return [parser, mapper](I input) {
+auto map(const parser<I, PO> auto &parser,
+         const std::function<MO(PO)> &mapper) {
+    return [parser, mapper](I input) -> MO {
         const auto [rest, raw_output] = parser(input);
         auto mapping = mapper(raw_output);
         return make_result(rest, mapping);
     };
 }
 
-template <typename I, typename SP, typename SO, typename EP, typename EO,
-          typename P>
-requires parser<SP, I, SO> && parser<EP, I, EO> && parser<P, I, EO>
-inline P separated_list(const SP &separator_parser, const EP &element_parser) {
-    return [separator_parser, element_parser](I input) {
+template <typename I, typename SO, typename EO>
+auto separated_list(const parser<I, SO> auto &separator_parser,
+                    const parser<I, EO> auto &element_parser) {
+    return [separator_parser, element_parser](I input) -> EO {
         auto elements = std::vector<EO>();
         auto current_rest = input;
 
@@ -219,34 +218,30 @@ inline P separated_list(const SP &separator_parser, const EP &element_parser) {
     };
 }
 
-template <typename I, typename PP, typename PO, typename TP, typename TO,
-          typename P>
-requires parser<PP, I, PO> && parser<TP, I, TO> && parser<P, I, TO>
-inline P prefixed(const PP &prefix_parser, TP &target_parser) {
-    return [prefix_parser, target_parser](I input) {
+template <typename I, typename PO, typename TO>
+auto prefixed(const parser<I, PO> auto &prefix_parser,
+              parser<I, TO> auto &target_parser) {
+    return [prefix_parser, target_parser](I input) -> TO {
         const auto [preceded_rest, _] = prefix_parser(input);
         const auto [target_rest, target_output] = target_parser(preceded_rest);
         return make_result(target_rest, target_output);
     };
 }
 
-template <typename I, typename TP, typename TO, typename SP, typename SO,
-          typename P>
-requires parser<TP, I, TO> && parser<SP, I, SO> && parser<P, I, TO>
-inline P suffixed(const TP &target_parser, SP &suffix_parser) {
-    return [target_parser, suffix_parser](I input) {
+template <typename I, typename TO, typename SO>
+auto suffixed(const parser<I, TO> auto &target_parser,
+              const parser<I, SO> auto &suffix_parser) {
+    return [target_parser, suffix_parser](I input) -> TO {
         const auto [target_rest, target_output] = target_parser(input);
         const auto [suffixed_rest, _] = suffix_parser(target_rest);
         return make_result(suffixed_rest, target_output);
     };
 }
 
-template <typename I, typename LP, typename LO, typename TP, typename TO,
-          typename RP, typename RO, typename P>
-requires parser<LP, I, LO> && parser<TP, I, TO> && parser<RP, I, RO> &&
-    parser<P, I, TO>
-inline P delimited(const LP &left_parser, const TP &target_parser,
-                   const RP &right_parser) {
+template <typename I, typename LO, typename TO, typename RO, parser<I, LO> LP,
+          parser<I, TO> TP, parser<I, RO> RP, parser<I, TO> P>
+P delimited(const LP &left_parser, const TP &target_parser,
+            const RP &right_parser) {
     return [left_parser, target_parser, right_parser](I input) {
         const auto [left_rest, _1] = left_parser(input);
         const auto [target_rest, target_output] = target_parser(input);
@@ -255,12 +250,10 @@ inline P delimited(const LP &left_parser, const TP &target_parser,
     };
 }
 
-template <typename I, typename LP, typename LO, typename RP, typename RO,
-          typename P>
-requires parser<LP, I, LO> && parser<RP, I, RO> &&
-    parser<P, I, std::tuple<LO, RO>>
-inline P pair(const LP &left_parser, const RP &right_parser) {
-    return [left_parser, right_parser](I input) {
+template <typename I, typename LO, typename RO>
+auto pair(const parser<I, LO> auto &left_parser,
+          const parser<I, RO> auto &right_parser) {
+    return [left_parser, right_parser](I input) -> RO {
         const auto [left_rest, left_output] = left_parser(input);
         const auto [right_rest, right_output] = right_output(left_rest);
         auto output = std::make_tuple(left_output, right_output);
@@ -268,12 +261,10 @@ inline P pair(const LP &left_parser, const RP &right_parser) {
     };
 }
 
-template <typename I, typename LP, typename LO, typename SP, typename SO,
-          typename RP, typename RO, typename P>
-requires parser<LP, I, LO> && parser<SP, I, SO> && parser<RP, I, RO> &&
-    parser<P, I, std::tuple<LO, RO>>
-inline P separated_pair(const LP &left_parser, const SP &separator_parser,
-                        const RP &right_parser) {
+template <typename I, typename LO, typename SO, typename RO>
+auto separated_pair(const parser<I, LO> auto &left_parser,
+                    const parser<I, SO> auto &separator_parser,
+                    const parser<I, RO> auto &right_parser) {
     return [left_parser, separator_parser, right_parser](I input) {
         const auto [left_rest, left_output] = left_parser(input);
         const auto [separator_rest, _] = separator_parser(left_rest);
