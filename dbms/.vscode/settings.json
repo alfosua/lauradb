@@ -71,6 +71,7 @@
         "semaphore": "cpp",
         "strstream": "cpp",
         "complex": "cpp",
-        "valarray": "cpp"
+        "valarray": "cpp",
+        "*.ipp": "cpp"
     }
 }

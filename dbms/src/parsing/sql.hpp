@@ -24,20 +24,20 @@ using namespace lauradb::parsing::sql::syntax_tree;
 using namespace lauradb::parsing::core;
 
 inline auto select_query_parser() {
-    auto termination = multispacing_or_none;
-    auto column_separator = delimited(multispacing_or_none, one_character(L','),
-                                      multispacing_or_none);
+    auto termination = multispacing_or_none();
+    auto column_separator = delimited(
+        multispacing_or_none(), one_character(L','), multispacing_or_none());
 
     auto select_tag = tag(L"select");
-    auto select_prefix = pair(&select_tag, &multispacing);
+    auto select_prefix = pair(select_tag, multispacing());
 
     auto from_tag = tag(L"from");
-    auto from_prefix = pair(from_tag, multispacing);
+    auto from_prefix = pair(from_tag, multispacing());
 
-    auto column_list = separated_list(column_separator, alphanumerics);
-    auto columns = delimited(select_prefix, column_list, multispacing);
+    auto column_list = separated_list(column_separator, alphanumerics());
+    auto columns = delimited(select_prefix, column_list, multispacing());
 
-    auto source = delimited(from_prefix, alphanumerics, termination);
+    auto source = delimited(from_prefix, alphanumerics(), termination);
 
     auto compilation = pair(columns, source);
 

@@ -11,12 +11,6 @@
 namespace lauradb::parsing::core {
 class string_parsable;
 
-template <typename F, typename I, typename O>
-concept parser = requires(F &&f, I &&i) {
-    { std::forward<F>(f)(std::forward<I>(i)) }
-    ->std::convertible_to<std::pair<I, O>>;
-};
-
 using string_predicate = std::function<bool(wchar_t &)>;
 
 class string_parsable {
@@ -128,8 +122,23 @@ inline auto sequence_satisfied_by_or_none(const string_parsable &input,
 
 } // namespace internals
 
-inline auto one_character(const char &target_ch) {
-    return [target_ch](const string_parsable &input) {
+template <typename I, typename O> class parser {
+  public:
+    virtual std::pair<I, O> parse(I input) const;
+    auto operator()(I input){return parse(input)};
+};
+
+using string_parser = parser<string_parsable, string_parsable>;
+using string_result = std::pair<string_parsable, string_parsable>;
+
+class one_character : public string_parser {
+  private:
+    wchar_t target_ch;
+
+  public:
+    one_character(wchar_t target_ch) : target_ch(target_ch) {}
+
+    string_result parse(string_parsable input) const override {
         auto &&[first, rest] = input.split_at_position(1);
 
         if (first == target_ch) {
@@ -137,10 +146,10 @@ inline auto one_character(const char &target_ch) {
         }
 
         return std::pair{std::move(first), std::move(rest)};
-    };
-}
+    }
+};
 
-class tag {
+class tag : public string_parser {
   private:
     std::wstring target_tag;
 
@@ -148,9 +157,8 @@ class tag {
     tag(const std::wstring &target_tag) : target_tag(target_tag) {}
     tag(std::wstring &&target_tag) : target_tag(std::move(target_tag)) {}
 
-    auto operator()(const string_parsable &input) const {
-
-        const auto [head, rest] = input.split_at_position(target_tag.length());
+    string_result parse(string_parsable input) const override {
+        auto [head, rest] = input.split_at_position(target_tag.length());
 
         if (head == target_tag) {
             throw std::runtime_error(
@@ -160,68 +168,111 @@ class tag {
             );
         }
 
-        return std::pair{head, rest};
+        return std::pair{std::move(head), std::move(rest)};
     }
 };
 
-inline auto alphabetics(const string_parsable &input) {
-    return internals::sequence_satisfied_by(input, std::iswalpha,
-                                            "Could not parse any alphabetic");
-}
+class alphabetics : public string_parser {
+  public:
+    string_result parse(string_parsable input) const override {
+        return internals::sequence_satisfied_by(
+            input, std::iswalpha, "Could not parse any alphabetic");
+    }
+};
 
-inline auto alphabetics_or_none(const string_parsable &input) {
-    return internals::sequence_satisfied_by_or_none(input, std::iswalpha);
-}
+class alphabetics_or_none : public string_parser {
+  public:
+    string_result parse(string_parsable input) const override {
+        return internals::sequence_satisfied_by_or_none(input, std::iswalpha);
+    }
+};
 
-inline auto digits(const string_parsable &input) {
-    return internals::sequence_satisfied_by(input, std::iswdigit,
-                                            "Could not parse any digit");
-}
+class digits : public string_parser {
+  public:
+    string_result parse(string_parsable input) const override {
+        return internals::sequence_satisfied_by(input, std::iswdigit,
+                                                "Could not parse any digit");
+    }
+};
 
-inline auto digits_or_none(const string_parsable &input) {
-    return internals::sequence_satisfied_by_or_none(input, std::iswdigit);
-}
+class digits_or_none : public string_parser {
+  public:
+    string_result parse(string_parsable input) const override {
+        return internals::sequence_satisfied_by_or_none(input, std::iswdigit);
+    }
+};
 
-inline auto alphanumerics(const string_parsable &input) {
-    return internals::sequence_satisfied_by(input, std::iswalnum,
-                                            "Could not parse any alphanumeric");
-}
+class alphanumerics : public string_parser {
+  public:
+    string_result parse(string_parsable input) const override {
+        return internals::sequence_satisfied_by(
+            input, std::iswalnum, "Could not parse any alphanumeric");
+    }
+};
 
-inline auto alphanumerics_or_none(const string_parsable &input) {
-    return internals::sequence_satisfied_by_or_none(input, std::iswalnum);
-}
+class alphanumerics_or_none : public string_parser {
+  public:
+    string_result parse(string_parsable input) const override {
+        return internals::sequence_satisfied_by_or_none(input, std::iswalnum);
+    }
+};
 
-inline auto multispacing(const string_parsable &input) {
-    return internals::sequence_satisfied_by(input, internals::is_multispace,
-                                            "Could not parse any spacing");
-}
+class multispacing : public string_parser {
+  public:
+    string_result parse(string_parsable input) const override {
+        return internals::sequence_satisfied_by(input, internals::is_multispace,
+                                                "Could not parse any spacing");
+    }
+};
 
-inline auto multispacing_or_none(const string_parsable &input) {
-    return internals::sequence_satisfied_by_or_none(input,
-                                                    internals::is_multispace);
-}
+class multispacing_or_none : public string_parser {
+  public:
+    string_result parse(string_parsable input) const override {
+        return internals::sequence_satisfied_by_or_none(
+            input, internals::is_multispace);
+    }
+};
 
 template <typename I, typename PO, typename MO>
-auto map(const parser<I, PO> auto &parser,
-         const std::function<MO(PO)> &mapper) {
-    return [parser, mapper](I input) {
-        const auto [rest, raw_output] = parser(input);
+class map : public parser<I, MO> {
+  private:
+    using mapper_t = std::function<MO(PO)>;
+    using result_t = std::pair<I, MO>;
+
+    parser<I, PO> target_parser;
+    mapper_t mapper;
+
+  public:
+    map(parser<I, PO> target_parser, mapper_t mapper)
+        : target_parser(target_parser), mapper(mapper) {}
+
+    result_t parse(I input) const override {
+        auto [rest, raw_output] = parser(input);
         auto mapping = mapper(raw_output);
-        return std::pair(rest, mapping);
-    };
-}
+        return std::pair(std::move(rest), std::move(mapping));
+    }
+};
 
 template <typename I, typename SO, typename EO>
-auto separated_list(const parser<I, SO> auto &separator_parser,
-                    const parser<I, EO> auto &element_parser) {
-    return [separator_parser, element_parser](I input) {
+class separated_list : public parser<I, std::vector<EO>> {
+  private:
+    using result_t = std::pair<I, std::vector<EO>>;
+
+    parser<I, SO> separator_parser;
+    parser<I, SO> element_parser;
+
+  public:
+    separated_list(parser<I, SO> separator_parser, parser<I, SO> element_parser)
+        : separator_parser(separator_parser), element_parser(element_parser) {}
+
+    result_t parse(I input) const override {
         auto elements = std::vector<EO>();
         auto current_rest = input;
 
         try {
             while (true) {
-                const auto [separator_rest, _] = separator_parser(current_rest);
-                const auto [element_rest, element_output] =
+                auto [separator_rest, _] = separator_parser(current_rest);
+                auto [element_rest, element_output] =
                     element_parser(separator_rest);
 
                 elements.push_back(element_output);
@@ -230,65 +281,112 @@ auto separated_list(const parser<I, SO> auto &separator_parser,
         } catch (std::exception ex) {
         }
 
-        return std::pair(current_rest, elements);
+        return std::pair(std::move(current_rest), std::move(elements));
     };
-}
+};
 
-template <typename I, typename PO, typename TO>
-auto prefixed(const parser<I, PO> auto &prefix_parser,
-              parser<I, TO> auto &target_parser) {
-    return [prefix_parser, target_parser](I input) {
-        const auto [preceded_rest, _] = prefix_parser(input);
-        const auto [target_rest, target_output] = target_parser(preceded_rest);
-        return std::pair(target_rest, target_output);
-    };
-}
+template <typename I, typename PO, typename TO> class prefixed {
+  private:
+    using result_t = std::pair<I, TO>;
 
-template <typename I, typename TO, typename SO>
-auto suffixed(const parser<I, TO> auto &target_parser,
-              const parser<I, SO> auto &suffix_parser) {
-    return [target_parser, suffix_parser](I input) {
-        const auto [target_rest, target_output] = target_parser(input);
-        const auto [suffixed_rest, _] = suffix_parser(target_rest);
-        return std::pair(suffixed_rest, target_output);
-    };
-}
+    parser<I, PO> prefix_parser;
+    parser<I, TO> target_parser;
+
+  public:
+    prefixed(parser<I, PO> prefix_parser, parser<I, TO> target_parser)
+        : prefix_parser(prefix_parser), target_parser(target_parser) {}
+
+    result_t prefixed(I input) const override {
+        auto [preceded_rest, _] = prefix_parser(input);
+        auto [target_rest, target_output] = target_parser(preceded_rest);
+        return std::pair(std::move(target_rest), std::move(target_output));
+    }
+};
+
+template <typename I, typename TO, typename SO> class suffixed : parser<I, TO> {
+  private:
+    using result_t = std::pair<I, TO>;
+
+    parser<I, TO> target_parser;
+    parser<I, SO> suffix_parser;
+
+  public:
+    suffixed(parser<I, TO> target_parser, parser<I, SO> suffix_parser)
+        : target_parser(target_parser), suffix_parser(suffix_parser) {}
+
+    result_t parse(I input) const override {
+        auto [target_rest, target_output] = target_parser(input);
+        auto [suffixed_rest, _] = suffix_parser(target_rest);
+        return std::pair(std::move(suffixed_rest), std::move(target_output));
+    }
+};
 
 template <typename I, typename LO, typename TO, typename RO>
-auto delimited(const parser<I, LO> auto &left_parser,
-               const parser<I, TO> auto &target_parser,
-               const parser<I, RO> auto &right_parser) {
-    return [left_parser, target_parser, right_parser](I input) {
-        const auto [left_rest, _1] = left_parser(input);
-        const auto [target_rest, target_output] = target_parser(left_rest);
-        const auto [right_rest, _2] = right_parser(target_rest);
-        return std::pair(right_rest, target_output);
-    };
-}
+class delimited : public parser<I, TO> {
+  private:
+    using result_t = std::pair<I, TO>;
+
+    parser<I, LO> left_parser;
+    parser<I, TO> target_parser;
+    parser<I, RO> right_parser;
+
+  public:
+    delimited(parser<I, LO> left_parser, parser<I, TO> target_parser,
+              parser<I, RO> right_parser)
+        : left_parser(left_parser), target_parser(target_parser),
+          right_parser(right_parser) {}
+
+    result_t parse(I input) const override {
+        auto [left_rest, _1] = left_parser(input);
+        auto [target_rest, target_output] = target_parser(left_rest);
+        auto [right_rest, _2] = right_parser(target_rest);
+        return std::pair(std::move(right_rest), std::move(target_output));
+    }
+};
 
 template <typename I, typename LO, typename RO>
-auto pair(const parser<I, LO> auto &left_parser,
-          const parser<I, RO> auto &right_parser) {
-    return [left_parser, right_parser](I input) {
-        const auto [left_rest, left_output] = left_parser(input);
-        const auto [right_rest, right_output] = right_output(left_rest);
+class pair : public parser<I, std::pair<LO, RO>> {
+  private:
+    using result_t = std::pair<I, std::pair<LO, RO>>;
+
+    parser<I, LO> left_parser;
+    parser<I, RO> right_parser;
+
+  public:
+    pair(parser<I, LO> left_parser, parser<I, RO> right_parser)
+        : left_parser(left_parser), right_parser(right_parser) {}
+
+    result_t parse(I input) const override {
+        auto [left_rest, left_output] = left_parser(input);
+        auto [right_rest, right_output] = right_output(left_rest);
         auto output = std::tuple(left_output, right_output);
-        return std::pair(right_rest, output);
-    };
-}
+        return std::pair(std::move(right_rest), std::move(output));
+    }
+};
 
 template <typename I, typename LO, typename SO, typename RO>
-auto separated_pair(const parser<I, LO> auto &left_parser,
-                    const parser<I, SO> auto &separator_parser,
-                    const parser<I, RO> auto &right_parser) {
-    return [left_parser, separator_parser, right_parser](I input) {
-        const auto [left_rest, left_output] = left_parser(input);
-        const auto [separator_rest, _] = separator_parser(left_rest);
-        const auto [right_rest, right_output] = right_parser(separator_rest);
+class separated_pair : public parser<I, std::pair<LO, RO>> {
+  private:
+    using result_t = std::pair<I, std::pair<LO, RO>>;
+
+    parser<I, LO> left_parser;
+    parser<I, SO> separator_parser;
+    parser<I, RO> right_parser;
+
+  public:
+    separated_pair(parser<I, LO> left_parser, parser<I, SO> separator_parser,
+                   parser<I, RO> right_parser)
+        : left_parser(left_parser), separator_parser(separator_parser),
+          right_parser(right_parser) {}
+
+    result_t parse(I input) const override {
+        auto [left_rest, left_output] = left_parser(input);
+        auto [separator_rest, _] = separator_parser(left_rest);
+        auto [right_rest, right_output] = right_parser(separator_rest);
         auto output = std::tuple(left_rest, right_rest);
-        return std::pair(right_rest, output);
-    };
-}
+        return std::pair(std::move(right_rest), std::move(output));
+    }
+};
 
 } // namespace lauradb::parsing::core
 
