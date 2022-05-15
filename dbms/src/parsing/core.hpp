@@ -13,8 +13,7 @@ template <typename R, typename O> using result = std::tuple<R, O>;
 
 template <typename F, typename I, typename O>
 concept parser = requires(F &&f, I &&i) {
-    { std::forward<F>(f)(std::forward<I>(i)) }
-    ->std::convertible_to<O>;
+    { std::forward<F>(f)(std::forward<I>(i)) } -> std::convertible_to<O>;
 };
 
 using string_predicate = std::function<bool(wchar_t &)>;
@@ -185,7 +184,7 @@ inline auto multispacing_or_none(const string_parsable &input) {
                                                     internals::is_multispace);
 }
 
-template <typename I, typename PP, typename PO, typename MO, typename P>
+template <typename I, typename PO, typename MO>
 auto map(const parser<I, PO> auto &parser,
          const std::function<MO(PO)> &mapper) {
     return [parser, mapper](I input) -> MO {
@@ -238,15 +237,15 @@ auto suffixed(const parser<I, TO> auto &target_parser,
     };
 }
 
-template <typename I, typename LO, typename TO, typename RO, parser<I, LO> LP,
-          parser<I, TO> TP, parser<I, RO> RP, parser<I, TO> P>
-P delimited(const LP &left_parser, const TP &target_parser,
-            const RP &right_parser) {
+template <typename I, typename LO, typename TO, typename RO>
+auto delimited(const parser<I, LO> auto &left_parser,
+               const parser<I, TO> auto &target_parser,
+               const parser<I, RO> auto &right_parser) {
     return [left_parser, target_parser, right_parser](I input) {
         const auto [left_rest, _1] = left_parser(input);
-        const auto [target_rest, target_output] = target_parser(input);
-        const auto [right_parser, _2] = right_parser(target_parser);
-        return make_result(right_parser, target_output);
+        const auto [target_rest, target_output] = target_parser(left_rest);
+        const auto [right_rest, _2] = right_parser(target_rest);
+        return make_result(right_rest, target_output);
     };
 }
 
