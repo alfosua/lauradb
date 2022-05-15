@@ -1,3 +1,5 @@
+#include "parsing/core.hpp"
+#include "parsing/sql.hpp"
 #include <boost/asio.hpp>
 #include <concepts>
 #include <fmt/core.h>
@@ -18,12 +20,12 @@ concept action = requires(F &&f, I &&i) {
 
 template <typename I, typename O, action<I, O> A>
 std::vector<O> map(const std::vector<I> &values, const A &action) {
-    auto result = std::vector<O>();
+    auto res = std::vector<O>();
 
     for (auto v : values)
-        result.push_back(action(v));
+        res.push_back(action(v));
 
-    return result;
+    return res;
 }
 
 string int_to_sqr_text(int v) { return std::to_string(v * v); }
