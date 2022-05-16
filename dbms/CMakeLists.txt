@@ -8,7 +8,12 @@ project(
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-add_compile_options(-Wall -Wextra -pedantic -Werror -fconcepts)
+add_compile_options(-Wall -Wextra -pedantic -Werror)
+
+# set -fconcepts if compiler supports it
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+  add_compile_options(-fconcepts)
+endif()
 
 include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
 conan_basic_setup(TARGETS)
