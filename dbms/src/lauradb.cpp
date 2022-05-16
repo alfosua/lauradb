@@ -1,4 +1,5 @@
 #include "parsing/core.hpp"
+#include "parsing/sql.hpp"
 #include <boost/asio.hpp>
 #include <concepts>
 #include <fmt/core.h>

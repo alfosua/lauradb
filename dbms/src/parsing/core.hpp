@@ -236,7 +236,7 @@ class multispacing_or_none : public string_parser {
 template <typename I, typename PO, typename MO>
 class map : public parser<I, MO> {
   private:
-    using mapper_t = std::function<MO(PO)>;
+    using mapper_t = MO (*)(PO);
     using result_t = std::pair<I, MO>;
 
     parser<I, PO> target_parser;
@@ -259,10 +259,10 @@ class separated_list : public parser<I, std::vector<EO>> {
     using result_t = std::pair<I, std::vector<EO>>;
 
     parser<I, SO> separator_parser;
-    parser<I, SO> element_parser;
+    parser<I, EO> element_parser;
 
   public:
-    separated_list(parser<I, SO> separator_parser, parser<I, SO> element_parser)
+    separated_list(parser<I, SO> separator_parser, parser<I, EO> element_parser)
         : separator_parser(separator_parser), element_parser(element_parser) {}
 
     result_t parse(I input) const override {

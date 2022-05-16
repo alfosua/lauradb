@@ -2,6 +2,7 @@
 #define LAURADB_PARSING_SQL_H_
 
 #include "core.hpp"
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -27,7 +28,6 @@ inline auto select_query_parser() {
     auto termination = multispacing_or_none();
     auto column_separator = delimited(
         multispacing_or_none(), one_character(L','), multispacing_or_none());
-
     auto select_tag = tag(L"select");
     auto select_prefix = pair(select_tag, multispacing());
 
@@ -43,7 +43,7 @@ inline auto select_query_parser() {
 
     auto select_query_map = map(compilation, [](auto compilation) {
         const auto [columns, source] = compilation;
-        return select_query(source, columns);
+        return select_query{source, columns};
     });
 
     return select_query_map;
