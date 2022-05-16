@@ -125,7 +125,7 @@ inline auto sequence_satisfied_by_or_none(const string_parsable &input,
 template <typename I, typename O> class parser {
   public:
     virtual std::pair<I, O> parse(I input) const;
-    auto operator()(I input){return parse(input)};
+    auto operator()(I input) { return parse(input); };
 };
 
 using string_parser = parser<string_parsable, string_parsable>;
@@ -285,7 +285,8 @@ class separated_list : public parser<I, std::vector<EO>> {
     };
 };
 
-template <typename I, typename PO, typename TO> class prefixed {
+template <typename I, typename PO, typename TO>
+class prefixed : public parser<I, TO> {
   private:
     using result_t = std::pair<I, TO>;
 
@@ -296,14 +297,15 @@ template <typename I, typename PO, typename TO> class prefixed {
     prefixed(parser<I, PO> prefix_parser, parser<I, TO> target_parser)
         : prefix_parser(prefix_parser), target_parser(target_parser) {}
 
-    result_t prefixed(I input) const override {
+    result_t parse(I input) const override {
         auto [preceded_rest, _] = prefix_parser(input);
         auto [target_rest, target_output] = target_parser(preceded_rest);
         return std::pair(std::move(target_rest), std::move(target_output));
     }
 };
 
-template <typename I, typename TO, typename SO> class suffixed : parser<I, TO> {
+template <typename I, typename TO, typename SO>
+class suffixed : public parser<I, TO> {
   private:
     using result_t = std::pair<I, TO>;
 
